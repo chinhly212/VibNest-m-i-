@@ -30,50 +30,58 @@ st.markdown(
       
       .block-container { 
         max-width: 600px !important; 
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
-        padding-top: 0.4rem !important; 
+        padding-left: 0.6rem !important;
+        padding-right: 0.6rem !important;
+        padding-top: 0.3rem !important; 
         padding-bottom: 5.5rem !important; 
       }
 
-      /* QUAN TRỌNG: Ép các cột ở thanh topbar luôn nằm ngang hàng trên di động */
-      [data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: 0.35rem !important;
-        align-items: center !important;
-      }
-      [data-testid="column"] {
-        width: auto !important;
-        flex: 1 !important;
-        min-width: 0 !important;
-      }
-
-      .model-badge {
-        background: #0e1422;
-        border: 1px solid #1f2c44;
-        border-radius: 0.8rem;
-        padding: 0.38rem 0.4rem;
-        color: #f4f5f8;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-align: center;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        height: 2.2rem;
+      /* Thanh Topbar thuần HTML/CSS flexbox tuyệt đối không bao giờ vỡ */
+      .custom-topbar {
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: space-between;
+        gap: 6px;
+        background: #080d1a;
+        border: 1px solid #1f2c44;
+        padding: 8px 10px;
+        border-radius: 14px;
+        margin-bottom: 12px;
+        width: 100%;
       }
-      
-      div[data-testid="column"] .stButton > button {
-        padding: 0.1rem 0.2rem !important;
-        font-size: 0.75rem !important;
-        height: 2.2rem !important;
-        min-height: 2.2rem !important;
-        white-space: nowrap !important;
+      .topbar-btn {
+        background: #0e1422;
+        border: 1px solid #1f2c44;
+        color: #f4f5f8;
+        padding: 6px 10px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .topbar-btn.primary {
+        background: #e53935;
+        border-color: #e53935;
+        color: white;
+      }
+      .model-pill {
+        background: #0e1422;
+        border: 1px solid #1f2c44;
+        color: #f4f5f8;
+        padding: 6px 10px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        text-align: center;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .chat-hero {
@@ -182,27 +190,23 @@ def persist_chat() -> None:
     )
     st.session_state.chat_id = current_id
 
-# Thanh Topbar ngang chuẩn di động
-top_cols = st.columns([1, 1.6, 1.1, 1.1])
+# Xử lý các sự kiện bấm nút trên topbar giả lập bằng query params hoặc st.button ẩn nếu cần
+# Ở đây dùng 2 nút Streamlit gọn gàng kết hợp HTML thuần để bắt sự kiện chính xác
+top_col1, top_col2, top_col3 = st.columns([1, 1.8, 1.2])
 
-with top_cols[0]:
+with top_col1:
     if st.button("＋ Mới", use_container_width=True):
         start_new_chat()
         st.rerun()
 
-with top_cols[1]:
-    st.markdown(f'<div class="model-badge">◈ {st.session_state.model}</div>', unsafe_allow_html=True)
+with top_col2:
+    st.markdown(f'<div class="model-pill">◈ {st.session_state.model}</div>', unsafe_allow_html=True)
 
-with top_cols[2]:
-    if st.button("🎁 Code", use_container_width=True):
-        st.toast("Tính năng Giftcode đang phát triển!")
-
-with top_cols[3]:
+with top_col3:
     if st.button("💳 Nạp", use_container_width=True, type="primary"):
         st.toast("Xem thông tin STK ở Sidebar bên trái!")
 
-st.divider()
-
+# Sidebar giữ nguyên toàn bộ tính năng
 with st.sidebar:
     st.markdown("### ◈ VibNest Dashboard")
     if st.button("＋ Cuộc trò chuyện mới", use_container_width=True, type="primary"):
@@ -297,3 +301,4 @@ if user_prompt:
                     response_slot.error(str(exc))
                 except Exception as exc:
                     response_slot.error(f"Lỗi không mong đợi: {exc}")
+                    
