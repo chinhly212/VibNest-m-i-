@@ -13,7 +13,6 @@ from storage import ChatStore
 APP_TITLE = "VibNest"
 DB_PATH = os.getenv("DARKGPT_DB_PATH", "darkgpt.sqlite3")
 
-# Cấu hình trang với thanh Sidebar mặc định thu gọn
 st.set_page_config(
     page_title=APP_TITLE,
     page_icon="◈",
@@ -21,7 +20,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Custom CSS cho giao diện phong cách WormGPT/VibNest di động
 st.markdown(
     """
     <style>
@@ -30,7 +28,6 @@ st.markdown(
       [data-testid="stHeader"] { background: transparent; }
       [data-testid="stSidebar"] { background: #0b101d; border-right: 1px solid #1a2336; }
       
-      /* Giới hạn khung hình chuẩn di động */
       .block-container { 
         max-width: 600px !important; 
         padding-left: 0.5rem !important;
@@ -39,31 +36,46 @@ st.markdown(
         padding-bottom: 5.5rem !important; 
       }
 
-      /* Tên Model tự động rút gọn dấu ... nếu dài */
+      /* QUAN TRỌNG: Ép các cột ở thanh topbar luôn nằm ngang hàng trên di động */
+      [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 0.35rem !important;
+        align-items: center !important;
+      }
+      [data-testid="column"] {
+        width: auto !important;
+        flex: 1 !important;
+        min-width: 0 !important;
+      }
+
       .model-badge {
         background: #0e1422;
         border: 1px solid #1f2c44;
         border-radius: 0.8rem;
-        padding: 0.35rem 0.4rem;
+        padding: 0.38rem 0.4rem;
         color: #f4f5f8;
-        font-size: 0.78rem;
+        font-size: 0.75rem;
         font-weight: 600;
         text-align: center;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        height: 2.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       
-      /* Định dạng nút trên Topbar vừa khít màn hình hẹp */
       div[data-testid="column"] .stButton > button {
-        padding: 0.2rem 0.2rem !important;
+        padding: 0.1rem 0.2rem !important;
         font-size: 0.75rem !important;
         height: 2.2rem !important;
         min-height: 2.2rem !important;
         white-space: nowrap !important;
       }
 
-      /* Màn hình chào chính giữa */
       .chat-hero {
         display: flex;
         flex-direction: column;
@@ -96,7 +108,6 @@ st.markdown(
         margin: 0;
       }
 
-      /* Thiết kế khung chat bo tròn */
       div[data-testid="stChatMessage"] { 
         background: #0e1422; 
         border: 1px solid #1b263b; 
@@ -105,7 +116,6 @@ st.markdown(
         margin-bottom: 0.7rem;
       }
 
-      /* Thanh nhập chat nổi bên dưới */
       [data-testid="stChatInput"] { 
         background: #0b101d !important;
         border: 1px solid #1f2c44 !important;
@@ -118,7 +128,6 @@ st.markdown(
 
 store = ChatStore(DB_PATH)
 
-# Khởi tạo Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "chat_id" not in st.session_state:
@@ -173,7 +182,7 @@ def persist_chat() -> None:
     )
     st.session_state.chat_id = current_id
 
-# Thanh Topbar phía trên cùng chia tỉ lệ cột chuẩn di động
+# Thanh Topbar ngang chuẩn di động
 top_cols = st.columns([1, 1.6, 1.1, 1.1])
 
 with top_cols[0]:
@@ -186,15 +195,14 @@ with top_cols[1]:
 
 with top_cols[2]:
     if st.button("🎁 Code", use_container_width=True):
-        st.toast("Tính năng Giftcode đang mở rộng!")
+        st.toast("Tính năng Giftcode đang phát triển!")
 
 with top_cols[3]:
     if st.button("💳 Nạp", use_container_width=True, type="primary"):
-        st.toast("Vui lòng xem thông tin nạp tiền ở Sidebar góc trên bên trái!")
+        st.toast("Xem thông tin STK ở Sidebar bên trái!")
 
 st.divider()
 
-# Sidebar: Nơi chứa toàn bộ cài đặt API, Lịch sử trò chuyện và Thông tin ngân hàng
 with st.sidebar:
     st.markdown("### ◈ VibNest Dashboard")
     if st.button("＋ Cuộc trò chuyện mới", use_container_width=True, type="primary"):
@@ -242,7 +250,6 @@ with st.sidebar:
     - **Nội dung:** `nap [Tên tài khoản]`
     """)
 
-# Màn hình chính khi chưa có tin nhắn
 if not st.session_state.messages:
     st.markdown(
         """
@@ -255,12 +262,10 @@ if not st.session_state.messages:
         unsafe_allow_html=True,
     )
 
-# Hiển thị danh sách tin nhắn
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Khung nhập chat
 user_prompt = st.chat_input("Nhập tin nhắn...")
 
 if user_prompt:
@@ -292,4 +297,3 @@ if user_prompt:
                     response_slot.error(str(exc))
                 except Exception as exc:
                     response_slot.error(f"Lỗi không mong đợi: {exc}")
-            
