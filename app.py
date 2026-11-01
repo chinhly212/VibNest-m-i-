@@ -36,8 +36,8 @@ st.markdown(
         padding-bottom: 5.5rem !important; 
       }
 
-      /* Thanh Topbar thuần HTML/CSS flexbox tuyệt đối không bao giờ vỡ */
-      .custom-topbar {
+      /* THANH TOPBAR HTML FLEXBOX THUẦN: Luôn nằm trên 1 hàng ngang, không bao giờ bị bẻ dọc trên di động */
+      .vib-topbar {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -48,8 +48,10 @@ st.markdown(
         border-radius: 14px;
         margin-bottom: 12px;
         width: 100%;
+        box-sizing: border-box;
       }
-      .topbar-btn {
+      
+      .vib-btn {
         background: #0e1422;
         border: 1px solid #1f2c44;
         color: #f4f5f8;
@@ -63,13 +65,18 @@ st.markdown(
         gap: 4px;
         text-decoration: none;
         white-space: nowrap;
+        flex-shrink: 0;
       }
-      .topbar-btn.primary {
+      .vib-btn:active {
+        transform: scale(0.95);
+      }
+      .vib-btn.primary {
         background: #e53935;
         border-color: #e53935;
         color: white;
       }
-      .model-pill {
+      
+      .vib-model-badge {
         background: #0e1422;
         border: 1px solid #1f2c44;
         color: #f4f5f8;
@@ -190,23 +197,36 @@ def persist_chat() -> None:
     )
     st.session_state.chat_id = current_id
 
-# Xử lý các sự kiện bấm nút trên topbar giả lập bằng query params hoặc st.button ẩn nếu cần
-# Ở đây dùng 2 nút Streamlit gọn gàng kết hợp HTML thuần để bắt sự kiện chính xác
-top_col1, top_col2, top_col3 = st.columns([1, 1.8, 1.2])
-
-with top_col1:
-    if st.button("＋ Mới", use_container_width=True):
+# Xử lý các action nhận từ query params nếu người dùng bấm nút trên topbar HTML
+params = st.query_params
+if "action" in params:
+    act = params["action"]
+    if act == "new":
         start_new_chat()
+        st.query_params.clear()
         st.rerun()
+    elif act == "giftcode":
+        st.toast("🎁 Giftcode: VIBNEST2026 đã áp dụng!")
+        st.query_params.clear()
+    elif act == "nap":
+        st.toast("💳 Vui lòng xem thông tin STK ở Sidebar bên trái!")
+        st.query_params.clear()
 
-with top_col2:
-    st.markdown(f'<div class="model-pill">◈ {st.session_state.model}</div>', unsafe_allow_html=True)
+# RENDER THANH TOPBAR BẰNG HTML TUYỆT ĐỐI CHUẨN NGANG
+current_model_name = st.session_state.model
+st.markdown(
+    f"""
+    <div class="vib-topbar">
+        <a href="?action=new" target="_self" class="vib-btn">＋ Mới</a>
+        <div class="vib-model-badge">◈ {current_model_name}</div>
+        <a href="?action=giftcode" target="_self" class="vib-btn">🎁 Code</a>
+        <a href="?action=nap" target="_self" class="vib-btn primary">💳 Nạp</a>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-with top_col3:
-    if st.button("💳 Nạp", use_container_width=True, type="primary"):
-        st.toast("Xem thông tin STK ở Sidebar bên trái!")
-
-# Sidebar giữ nguyên toàn bộ tính năng
+# Sidebar giữ nguyên toàn bộ tính năng cài đặt & lịch sử
 with st.sidebar:
     st.markdown("### ◈ VibNest Dashboard")
     if st.button("＋ Cuộc trò chuyện mới", use_container_width=True, type="primary"):
