@@ -66,7 +66,7 @@ PROVIDER_DEFAULTS = {
         "key_env": "OPENAI_API_KEY",
     },
     "Gemini": {
-        "model": "gemini-2.5-flash",
+        "model": "gemini-3.8-flash",
         "base_url": "https://generativelanguage.googleapis.com/v1beta",
         "key_env": "GEMINI_API_KEY",
     },
@@ -197,7 +197,7 @@ with st.sidebar:
 
     # Vị trí cố định của phần nạp tiền bằng tài khoản ngân hàng (dạng mẫu)
     st.divider()
-    st.markdown("#### 💎 Nạp tiền ngân hàng")
+    st.markdown("####  Nạp tiền ngân hàng")
     st.markdown("""
     *Chức năng nạp tiền qua tài khoản (Mẫu)*:
     - **Ngân hàng:** MB Bank / Vietcombank
@@ -289,4 +289,3 @@ if st.session_state.messages:
             st.rerun()
     with col_c:
         st.caption(f"Nhà cung cấp: {st.session_state.provider} · Mô hình: {st.session_state.model}")
-        
