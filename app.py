@@ -1,361 +1,295 @@
-html
-<!DOCTYPE html>
-<html lang="vi" class="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VibNest AI - Mobile UI Preview</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        darkBg: '#05070b',
-                        panelBg: '#0b101d',
-                        cardBg: '#0e1422',
-                        borderColor: '#1f2c44',
-                        accentRed: '#e53935',
-                        accentRedHover: '#d32f2f',
-                    }
-                }
-            }
-        }
-    </script>
-    <!-- FontAwesome for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+from __future__ import annotations
+
+import json
+import os
+from datetime import datetime
+from typing import Any
+
+import streamlit as st
+
+from providers import ProviderError, chat_completion
+from storage import ChatStore
+
+APP_TITLE = "VibNest"
+DB_PATH = os.getenv("DARKGPT_DB_PATH", "darkgpt.sqlite3")
+
+# Cấu hình trang với thanh Sidebar mặc định thu gọn
+st.set_page_config(
+    page_title=APP_TITLE,
+    page_icon="◈",
+    layout="centered",
+    initial_sidebar_state="collapsed",
+)
+
+# Custom CSS cho giao diện phong cách WormGPT/VibNest di động
+st.markdown(
+    """
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #05070b;
-            color: #f4f5f8;
-        }
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 4px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #05070b;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #1f2c44;
-            border-radius: 4px;
-        }
-        .glow-red-icon {
-            box-shadow: 0 0 35px rgba(229, 57, 53, 0.45);
-        }
+      :root { color-scheme: dark; }
+      .stApp { background: #05070b; }
+      [data-testid="stHeader"] { background: transparent; }
+      [data-testid="stSidebar"] { background: #0b101d; border-right: 1px solid #1a2336; }
+      
+      /* Giới hạn khung hình chuẩn di động */
+      .block-container { 
+        max-width: 600px !important; 
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+        padding-top: 0.4rem !important; 
+        padding-bottom: 5.5rem !important; 
+      }
+
+      /* Tên Model tự động rút gọn dấu ... nếu dài */
+      .model-badge {
+        background: #0e1422;
+        border: 1px solid #1f2c44;
+        border-radius: 0.8rem;
+        padding: 0.35rem 0.4rem;
+        color: #f4f5f8;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      
+      /* Định dạng nút trên Topbar vừa khít màn hình hẹp */
+      div[data-testid="column"] .stButton > button {
+        padding: 0.2rem 0.2rem !important;
+        font-size: 0.75rem !important;
+        height: 2.2rem !important;
+        min-height: 2.2rem !important;
+        white-space: nowrap !important;
+      }
+
+      /* Màn hình chào chính giữa */
+      .chat-hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 3.5rem 1rem 1.5rem 1rem;
+      }
+      .chat-hero-logo {
+        width: 3.8rem;
+        height: 3.8rem;
+        display: grid;
+        place-items: center;
+        border-radius: 1.2rem;
+        background: linear-gradient(135deg, #ff4b4b, #ff764b);
+        color: white;
+        font-size: 1.8rem;
+        box-shadow: 0 0 25px rgba(255, 75, 75, 0.3);
+        margin-bottom: 1rem;
+      }
+      .chat-hero h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #f4f5f8;
+        margin: 0 0 0.4rem 0;
+      }
+      .chat-hero p {
+        color: #8b97b0;
+        font-size: 0.88rem;
+        margin: 0;
+      }
+
+      /* Thiết kế khung chat bo tròn */
+      div[data-testid="stChatMessage"] { 
+        background: #0e1422; 
+        border: 1px solid #1b263b; 
+        border-radius: 1rem; 
+        padding: 0.8rem 1rem; 
+        margin-bottom: 0.7rem;
+      }
+
+      /* Thanh nhập chat nổi bên dưới */
+      [data-testid="stChatInput"] { 
+        background: #0b101d !important;
+        border: 1px solid #1f2c44 !important;
+        border-radius: 1.2rem !important;
+      }
     </style>
-</head>
-<body class="h-screen flex flex-col justify-between overflow-hidden relative select-none">
+    """,
+    unsafe_allow_html=True,
+)
 
-    <!-- Topbar Header (Strict Flexbox No-Overflow Layout) -->
-    <header class="w-full bg-[#080d1a]/95 backdrop-blur-md border-b border-[#1f2c44] px-2.5 py-2 flex items-center justify-between gap-1.5 z-20 shrink-0">
-        <!-- Left: Menu Button -->
-        <button id="sidebarToggle" class="w-8 h-8 flex items-center justify-center rounded-xl bg-[#0e1422] border border-[#1f2c44] text-gray-300 active:scale-95 transition shrink-0">
-            <i class="fa-solid fa-bars text-xs"></i>
-        </button>
+store = ChatStore(DB_PATH)
 
-        <!-- Center: Model Badge (Truncated) -->
-        <div class="relative shrink flex-1 max-w-[140px] xs:max-w-[160px] sm:max-w-[200px]">
-            <button id="modelSelectBtn" class="w-full flex items-center justify-between bg-[#0e1422] border border-[#1f2c44] px-2.5 py-1.5 rounded-xl text-gray-200 active:bg-[#162035] transition">
-                <span id="selectedModel" class="text-[11px] font-semibold truncate text-gray-200">gemini-3.8-flash</span>
-                <i class="fa-solid fa-chevron-down text-[9px] text-gray-400 ml-1 shrink-0"></i>
-            </button>
-            <div id="modelDropdown" class="hidden absolute top-full left-0 mt-1.5 w-44 bg-[#0b101d] border border-[#1f2c44] rounded-xl shadow-2xl py-1 z-50 text-[11px]">
-                <a href="#" onclick="selectModel('gemini-3.8-flash')" class="block px-3 py-2 text-gray-200 hover:bg-[#1f2c44] transition truncate">gemini-3.8-flash</a>
-                <a href="#" onclick="selectModel('gpt-4o-mini')" class="block px-3 py-2 text-gray-200 hover:bg-[#1f2c44] transition truncate">gpt-4o-mini</a>
-                <a href="#" onclick="selectModel('llama-3.3-70b-versatile')" class="block px-3 py-2 text-gray-200 hover:bg-[#1f2c44] transition truncate">llama-3.3-70b-versatile</a>
-            </div>
+# Khởi tạo Session State
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "chat_id" not in st.session_state:
+    st.session_state.chat_id = None
+if "provider" not in st.session_state:
+    st.session_state.provider = "OpenAI-compatible"
+if "model" not in st.session_state:
+    st.session_state.model = "gpt-4o-mini"
+
+PROVIDER_DEFAULTS = {
+    "OpenAI-compatible": {
+        "model": "gpt-4o-mini",
+        "base_url": "https://api.openai.com/v1",
+        "key_env": "OPENAI_API_KEY",
+    },
+    "Gemini": {
+        "model": "gemini-3.8-flash",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta",
+        "key_env": "GEMINI_API_KEY",
+    },
+    "Ollama (local)": {
+        "model": "llama3.2",
+        "base_url": "http://localhost:11434",
+        "key_env": "",
+    },
+}
+
+def start_new_chat() -> None:
+    st.session_state.chat_id = None
+    st.session_state.messages = []
+
+def load_chat(chat_id: int) -> None:
+    saved = store.get_chat(chat_id)
+    if saved:
+        st.session_state.chat_id = saved["id"]
+        st.session_state.messages = saved["messages"]
+        st.session_state.provider = saved["provider"]
+        st.session_state.model = saved["model"]
+
+def persist_chat() -> None:
+    messages = st.session_state.messages
+    if not messages:
+        return
+    first_user = next((m["content"] for m in messages if m["role"] == "user"), "Cuộc trò chuyện mới")
+    title = " ".join(first_user.strip().split())[:52] or "Cuộc trò chuyện mới"
+    current_id = store.save_chat(
+        chat_id=st.session_state.chat_id,
+        title=title,
+        provider=st.session_state.provider,
+        model=st.session_state.model,
+        messages=messages,
+    )
+    st.session_state.chat_id = current_id
+
+# Thanh Topbar phía trên cùng chia tỉ lệ cột chuẩn di động
+top_cols = st.columns([1, 1.6, 1.1, 1.1])
+
+with top_cols[0]:
+    if st.button("＋ Mới", use_container_width=True):
+        start_new_chat()
+        st.rerun()
+
+with top_cols[1]:
+    st.markdown(f'<div class="model-badge">◈ {st.session_state.model}</div>', unsafe_allow_html=True)
+
+with top_cols[2]:
+    if st.button("🎁 Code", use_container_width=True):
+        st.toast("Tính năng Giftcode đang mở rộng!")
+
+with top_cols[3]:
+    if st.button("💳 Nạp", use_container_width=True, type="primary"):
+        st.toast("Vui lòng xem thông tin nạp tiền ở Sidebar góc trên bên trái!")
+
+st.divider()
+
+# Sidebar: Nơi chứa toàn bộ cài đặt API, Lịch sử trò chuyện và Thông tin ngân hàng
+with st.sidebar:
+    st.markdown("### ◈ VibNest Dashboard")
+    if st.button("＋ Cuộc trò chuyện mới", use_container_width=True, type="primary"):
+        start_new_chat()
+        st.rerun()
+
+    st.markdown("#### Lịch sử trò chuyện")
+    recent_chats = store.list_chats(limit=30)
+    if recent_chats:
+        for item in recent_chats:
+            label = item["title"] or "Cuộc trò chuyện mới"
+            is_current = item["id"] == st.session_state.chat_id
+            button_label = ("● " if is_current else "　") + label[:30]
+            if st.button(button_label, key=f"chat_{item['id']}", use_container_width=True):
+                load_chat(item["id"])
+                st.rerun()
+    else:
+        st.caption("Chưa có lịch sử chat.")
+
+    st.divider()
+    st.markdown("#### Kết nối mô hình AI")
+
+    provider_options = list(PROVIDER_DEFAULTS.keys())
+    current_provider = st.session_state.provider
+    if current_provider not in provider_options:
+        current_provider = "OpenAI-compatible"
+    provider = st.selectbox("Nhà cung cấp (Provider)", provider_options, index=provider_options.index(current_provider))
+    defaults = PROVIDER_DEFAULTS[provider]
+
+    base_url = st.text_input("Base URL", value=st.session_state.get(f"base_{provider}", defaults["base_url"]), key=f"base_{provider}")
+    model = st.text_input("Model name", value=st.session_state.get(f"model_{provider}", defaults["model"]), key=f"model_{provider}")
+    
+    if provider != "Ollama (local)":
+        api_key = st.text_input("API Key", value=st.session_state.get(f"key_{provider}", os.getenv(defaults["key_env"], "")), type="password", key=f"key_{provider}")
+    
+    st.session_state.provider = provider
+    st.session_state.model = model.strip() or defaults["model"]
+
+    st.divider()
+    st.markdown("#### 💎 Nạp tiền ngân hàng (Mẫu)")
+    st.markdown("""
+    - **Ngân hàng:** MB Bank / Vietcombank
+    - **STK:** `123456789`
+    - **Chủ TK:** CHINH LY
+    - **Nội dung:** `nap [Tên tài khoản]`
+    """)
+
+# Màn hình chính khi chưa có tin nhắn
+if not st.session_state.messages:
+    st.markdown(
+        """
+        <div class="chat-hero">
+            <div class="chat-hero-logo">◈</div>
+            <h2>VibNest Ready</h2>
+            <p>Trợ lý AI của bạn. Hãy bắt đầu trò chuyện!</p>
         </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        <!-- Right: Action Buttons -->
-        <div class="flex items-center gap-1.5 shrink-0">
-            <!-- Giftcode Button -->
-            <button onclick="showToast('🎁 Giftcode: VIBNEST2026 đã áp dụng!')" class="flex items-center gap-1 bg-[#0e1422] border border-[#ff4b4b]/40 text-[#ff5252] text-[11px] font-semibold px-2.5 py-1.5 rounded-xl active:scale-95 transition">
-                <i class="fa-solid fa-gift text-[10px]"></i>
-                <span class="whitespace-nowrap">Giftcode</span>
-            </button>
+# Hiển thị danh sách tin nhắn
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-            <!-- Charge Credits Button -->
-            <button onclick="openModal()" class="flex items-center gap-1 bg-[#e53935] hover:bg-[#d32f2f] text-white text-[11px] font-bold px-2.5 py-1.5 rounded-xl shadow-md shadow-red-900/40 active:scale-95 transition">
-                <i class="fa-solid fa-dollar-sign text-[10px]"></i>
-                <span class="whitespace-nowrap">Nạp tín dụng</span>
-            </button>
-        </div>
-    </header>
+# Khung nhập chat
+user_prompt = st.chat_input("Nhập tin nhắn...")
 
-    <!-- Sidebar Drawer Overlay -->
-    <div id="sidebarOverlay" onclick="closeSidebar()" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-30 transition-opacity"></div>
+if user_prompt:
+    cleaned_prompt = user_prompt.strip()
+    if cleaned_prompt:
+        st.session_state.messages.append({"role": "user", "content": cleaned_prompt})
+        with st.chat_message("user"):
+            st.markdown(cleaned_prompt)
 
-    <!-- Sidebar Drawer Panel -->
-    <aside id="sidebar" class="fixed top-0 left-0 bottom-0 w-72 sm:w-80 bg-[#0b101d] border-r border-[#1f2c44] z-40 transform -translate-x-full transition-transform duration-300 flex flex-col justify-between p-4">
-        <div>
-            <!-- Sidebar Header -->
-            <div class="flex items-center justify-between mb-5">
-                <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-red-600 to-orange-500 flex items-center justify-center text-white font-bold text-xs">◈</div>
-                    <span class="font-bold text-base text-white">VibNest AI</span>
-                </div>
-                <button onclick="closeSidebar()" class="text-gray-400 hover:text-white p-1">
-                    <i class="fa-solid fa-xmark text-base"></i>
-                </button>
-            </div>
-
-            <!-- New Chat Button -->
-            <button onclick="resetChat()" class="w-full bg-[#e53935] hover:bg-[#d32f2f] text-white font-semibold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-2 transition mb-4 shadow-md">
-                <i class="fa-solid fa-plus text-xs"></i>
-                <span>Cuộc trò chuyện mới</span>
-            </button>
-
-            <!-- Recent Chat History -->
-            <div class="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-wider px-1">Lịch sử trò chuyện</div>
-            <div class="space-y-1 overflow-y-auto max-h-60 pr-1">
-                <button class="w-full text-left px-3 py-2 rounded-xl bg-[#162035] text-white text-xs truncate flex items-center gap-2">
-                    <i class="fa-solid fa-message text-red-500 text-[10px]"></i>
-                    <span>Tạo giao diện chatbot Streamlit</span>
-                </button>
-                <button class="w-full text-left px-3 py-2 rounded-xl text-gray-400 hover:bg-[#162035]/50 hover:text-gray-200 text-xs truncate flex items-center gap-2 transition">
-                    <i class="fa-regular fa-message text-gray-500 text-[10px]"></i>
-                    <span>Cấu hình API Key Gemini</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Sidebar Banking Info Box -->
-        <div class="border-t border-[#1f2c44] pt-3">
-            <div class="text-[11px] font-bold text-red-400 mb-1.5 flex items-center gap-1.5">
-                <i class="fa-solid fa-gem"></i> Nạp tiền ngân hàng
-            </div>
-            <div class="bg-[#0e1422] border border-[#1f2c44] rounded-xl p-2.5 text-[11px] space-y-1 text-gray-300">
-                <div class="flex justify-between"><span class="text-gray-400">Ngân hàng:</span> <span class="font-semibold text-white">MB Bank</span></div>
-                <div class="flex justify-between"><span class="text-gray-400">STK:</span> <span class="font-mono text-amber-300">123456789</span></div>
-                <div class="flex justify-between"><span class="text-gray-400">Chủ TK:</span> <span class="font-semibold text-white">CHINH LY</span></div>
-                <div class="flex justify-between"><span class="text-gray-400">Nội dung:</span> <span class="font-mono text-red-400">nap VibNest</span></div>
-            </div>
-        </div>
-    </aside>
-
-    <!-- Main Chat Area Container -->
-    <main id="chatContainer" class="flex-1 overflow-y-auto max-w-xl w-full mx-auto px-3 py-4 flex flex-col justify-start">
-
-        <!-- Default Hero View when no chat messages -->
-        <div id="heroView" class="my-auto flex flex-col items-center justify-center text-center py-6">
-            <!-- Red Glowing Devil / AI Logo Icon -->
-            <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-red-600 via-red-500 to-orange-500 flex items-center justify-center glow-red-icon mb-4 animate-pulse">
-                <i class="fa-solid fa-dragon text-3xl sm:text-4xl text-white"></i>
-            </div>
+        request_messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+        with st.chat_message("assistant"):
+            response_slot = st.empty()
+            with st.spinner(f"Đang trò chuyện với {st.session_state.model}…"):
+                try:
+                    answer = chat_completion(
+                        provider=st.session_state.provider,
+                        model=st.session_state.model,
+                        base_url=st.session_state.get(f"base_{st.session_state.provider}", defaults["base_url"]),
+                        api_key=st.session_state.get(f"key_{st.session_state.provider}", os.getenv(defaults["key_env"], "")),
+                        messages=request_messages,
+                        system_prompt=st.session_state.get("system_prompt", "Bạn là trợ lý hữu ích."),
+                        temperature=0.7,
+                        max_tokens=2048,
+                    )
+                    response_slot.markdown(answer)
+                    st.session_state.messages.append({"role": "assistant", "content": answer})
+                    persist_chat()
+                except ProviderError as exc:
+                    response_slot.error(str(exc))
+                except Exception as exc:
+                    response_slot.error(f"Lỗi không mong đợi: {exc}")
             
-            <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight mb-1">WormGPT Ready</h1>
-            <p class="text-gray-400 text-xs sm:text-sm">Trợ lý AI của bạn. Hãy bắt đầu trò chuyện!</p>
-        </div>
-
-        <!-- Chat Message History Container -->
-        <div id="messagesList" class="w-full space-y-3 hidden">
-            <!-- Messages populated dynamically via JavaScript -->
-        </div>
-    </main>
-
-    <!-- Bottom Input Controls Bar -->
-    <footer class="w-full max-w-xl mx-auto px-3 pb-3 pt-1 shrink-0 z-10">
-        <div class="bg-[#0b101d] border border-[#1f2c44] rounded-2xl p-2 shadow-2xl focus-within:border-red-500/60 transition">
-            
-            <textarea id="chatInput" rows="1" placeholder="Nhập tin nhắn..." class="w-full bg-transparent text-gray-200 placeholder-gray-500 text-xs sm:text-sm px-2 pt-1 pb-6 focus:outline-none resize-none max-h-28"></textarea>
-            
-            <!-- Controls Bar inside text area -->
-            <div class="flex items-center justify-between pt-1 border-t border-[#162035]/80">
-                <div class="flex items-center gap-1.5">
-                    <!-- File Attachment Pill -->
-                    <button onclick="showToast('Mở hộp thoại đính kèm tập tin')" class="flex items-center gap-1 bg-[#0e1422] border border-[#1f2c44] active:bg-[#162035] text-gray-300 text-[11px] px-2.5 py-1 rounded-xl transition">
-                        <i class="fa-solid fa-paperclip text-[10px]"></i>
-                        <span>Đính kèm</span>
-                    </button>
-
-                    <!-- Agent Toggle Pill -->
-                    <button id="agentBtn" onclick="toggleAgent()" class="flex items-center gap-1 bg-[#0e1422] border border-[#1f2c44] text-gray-300 text-[11px] px-2.5 py-1 rounded-xl transition">
-                        <i class="fa-solid fa-list-check text-[10px] text-gray-400"></i>
-                        <span>Agent</span>
-                        <span id="agentBadge" class="bg-red-500/20 text-red-400 font-bold px-1 rounded text-[9px]">BẬT</span>
-                    </button>
-                </div>
-
-                <!-- Submit Button -->
-                <button id="sendBtn" onclick="submitMessage()" class="w-8 h-8 bg-[#e53935] hover:bg-[#d32f2f] text-white rounded-xl flex items-center justify-center active:scale-95 transition shadow-md shadow-red-900/30">
-                    <i class="fa-solid fa-arrow-up text-xs"></i>
-                </button>
-            </div>
-        </div>
-    </footer>
-
-    <!-- Payment Modal (Banking Dialog) -->
-    <div id="paymentModal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-[#0b101d] border border-[#1f2c44] w-full max-w-xs rounded-2xl p-4 shadow-2xl relative">
-            <button onclick="closeModal()" class="absolute top-3 right-3 text-gray-400 hover:text-white">
-                <i class="fa-solid fa-xmark text-base"></i>
-            </button>
-            <div class="text-center mb-3">
-                <div class="w-10 h-10 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-1.5 text-lg">
-                    <i class="fa-solid fa-credit-card"></i>
-                </div>
-                <h3 class="text-base font-bold text-white">Nạp tín dụng VibNest</h3>
-                <p class="text-[10px] text-gray-400">Chuyển khoản theo thông tin bên dưới</p>
-            </div>
-            <div class="bg-[#0e1422] border border-[#1f2c44] rounded-xl p-2.5 text-[11px] space-y-1.5 text-gray-300 mb-3">
-                <div class="flex justify-between"><span>Ngân hàng:</span> <span class="font-bold text-white">MB Bank</span></div>
-                <div class="flex justify-between"><span>Số tài khoản:</span> <span class="font-mono text-amber-300 font-bold">123456789</span></div>
-                <div class="flex justify-between"><span>Chủ tài khoản:</span> <span class="font-bold text-white">CHINH LY</span></div>
-                <div class="flex justify-between"><span>Nội dung CK:</span> <span class="font-mono text-red-400 font-bold">nap VibNest</span></div>
-            </div>
-            <button onclick="closeModal(); showToast('Đã ghi nhận yêu cầu nạp tiền!');" class="w-full bg-[#e53935] hover:bg-[#d32f2f] text-white font-bold py-2 rounded-xl text-xs transition">
-                Tôi đã chuyển khoản
-            </button>
-        </div>
-    </div>
-
-    <!-- Toast Notification Popup -->
-    <div id="toast" class="hidden fixed top-12 left-1/2 transform -translate-x-1/2 bg-[#0e1422] border border-red-500/50 text-white text-[11px] px-3.5 py-2 rounded-xl shadow-2xl z-50 flex items-center gap-2 whitespace-nowrap">
-        <i class="fa-solid fa-circle-info text-red-400"></i>
-        <span id="toastMsg">Notification message</span>
-    </div>
-
-    <!-- Interactive Script -->
-    <script>
-        let agentActive = true;
-
-        // Model selector dropdown logic
-        const modelBtn = document.getElementById('modelSelectBtn');
-        const modelDropdown = document.getElementById('modelDropdown');
-        modelBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            modelDropdown.classList.toggle('hidden');
-        });
-
-        document.addEventListener('click', () => {
-            modelDropdown.classList.add('hidden');
-        });
-
-        function selectModel(name) {
-            document.getElementById('selectedModel').innerText = name;
-            modelDropdown.classList.add('hidden');
-            showToast(`Đã chuyển sang ${name}`);
-        }
-
-        // Sidebar controls
-        const sidebar = document.getElementById('sidebar');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
-        document.getElementById('sidebarToggle').addEventListener('click', () => {
-            sidebar.classList.remove('-translate-x-full');
-            sidebarOverlay.classList.remove('hidden');
-        });
-
-        function closeSidebar() {
-            sidebar.classList.add('-translate-x-full');
-            sidebarOverlay.classList.add('hidden');
-        }
-
-        // Agent Toggle logic
-        function toggleAgent() {
-            agentActive = !agentActive;
-            const badge = document.getElementById('agentBadge');
-            if (agentActive) {
-                badge.innerText = 'BẬT';
-                badge.className = 'bg-red-500/20 text-red-400 font-bold px-1 rounded text-[9px]';
-                showToast('Chế độ Agent đã BẬT');
-            } else {
-                badge.innerText = 'TẮT';
-                badge.className = 'bg-gray-500/20 text-gray-400 font-bold px-1 rounded text-[9px]';
-                showToast('Chế độ Agent đã TẮT');
-            }
-        }
-
-        // Modal controls
-        function openModal() {
-            document.getElementById('paymentModal').classList.remove('hidden');
-        }
-        function closeModal() {
-            document.getElementById('paymentModal').classList.add('hidden');
-        }
-
-        // Toast Notification
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            document.getElementById('toastMsg').innerText = msg;
-            toast.classList.remove('hidden');
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 2500);
-        }
-
-        // Chat Logic
-        const chatInput = document.getElementById('chatInput');
-        const heroView = document.getElementById('heroView');
-        const messagesList = document.getElementById('messagesList');
-
-        chatInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                submitMessage();
-            }
-        });
-
-        function submitMessage() {
-            const text = chatInput.value.trim();
-            if (!text) return;
-
-            heroView.classList.add('hidden');
-            messagesList.classList.remove('hidden');
-
-            // Render User Bubble
-            const userMsgDiv = document.createElement('div');
-            userMsgDiv.className = 'flex flex-col items-end';
-            userMsgDiv.innerHTML = `
-                <div class="bg-[#e53935] text-white text-xs px-3.5 py-2 rounded-2xl rounded-tr-none max-w-[85%] shadow-md">
-                    ${escapeHtml(text)}
-                </div>
-            `;
-            messagesList.appendChild(userMsgDiv);
-
-            chatInput.value = '';
-            scrollToBottom();
-
-            // Simulate Assistant Response
-            setTimeout(() => {
-                const modelName = document.getElementById('selectedModel').innerText;
-                const assistantMsgDiv = document.createElement('div');
-                assistantMsgDiv.className = 'flex flex-col items-start';
-                assistantMsgDiv.innerHTML = `
-                    <div class="flex items-center gap-1.5 mb-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                        <span class="text-[10px] text-gray-400 font-semibold">${modelName}</span>
-                    </div>
-                    <div class="bg-[#0e1422] border border-[#1f2c44] text-gray-200 text-xs px-3.5 py-2.5 rounded-2xl rounded-tl-none max-w-[88%] shadow-md leading-relaxed">
-                        Chào bạn! Tôi là trợ lý AI <strong>VibNest</strong> (${modelName}). Tôi đã nhận được yêu cầu của bạn!
-                    </div>
-                `;
-                messagesList.appendChild(assistantMsgDiv);
-                scrollToBottom();
-            }, 500);
-        }
-
-        function resetChat() {
-            messagesList.innerHTML = '';
-            messagesList.classList.add('hidden');
-            heroView.classList.remove('hidden');
-            closeSidebar();
-            showToast('Đã tạo cuộc trò chuyện mới');
-        }
-
-        function scrollToBottom() {
-            const container = document.getElementById('chatContainer');
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function escapeHtml(str) {
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-        }
-    </script>
-</body>
-</html>
