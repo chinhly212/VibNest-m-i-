@@ -10,7 +10,7 @@ import streamlit as st
 from providers import ProviderError, chat_completion
 from storage import ChatStore
 
-APP_TITLE = "DarkGPT"
+APP_TITLE = "VibNest"
 DB_PATH = os.getenv("DARKGPT_DB_PATH", "darkgpt.sqlite3")
 
 st.set_page_config(
@@ -96,8 +96,8 @@ def persist_chat() -> None:
     messages = st.session_state.messages
     if not messages:
         return
-    first_user = next((m["content"] for m in messages if m["role"] == "user"), "New conversation")
-    title = " ".join(first_user.strip().split())[:52] or "New conversation"
+    first_user = next((m["content"] for m in messages if m["role"] == "user"), "Cuộc trò chuyện mới")
+    title = " ".join(first_user.strip().split())[:52] or "Cuộc trò chuyện mới"
     current_id = store.save_chat(
         chat_id=st.session_state.chat_id,
         title=title,
@@ -108,40 +108,40 @@ def persist_chat() -> None:
     st.session_state.chat_id = current_id
 
 
-# Sidebar: navigation and connection settings.
+# Sidebar: điều hướng và cài đặt kết nối.
 with st.sidebar:
-    st.markdown('<div class="brand"><div class="brand-mark">◈</div><div class="brand-name">DarkGPT</div></div>', unsafe_allow_html=True)
-    st.markdown('<div class="brand-sub">Multi-model AI chat explorer</div>', unsafe_allow_html=True)
+    st.markdown('<div class="brand"><div class="brand-mark">◈</div><div class="brand-name">VibNest</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="brand-sub">Trợ lý AI đa mô hình</div>', unsafe_allow_html=True)
 
-    if st.button("＋  New conversation", use_container_width=True, type="primary"):
+    if st.button("＋  Cuộc trò chuyện mới", use_container_width=True, type="primary"):
         start_new_chat()
         st.rerun()
 
-    st.markdown("#### Recent conversations")
+    st.markdown("#### Lịch sử trò chuyện")
     recent_chats = store.list_chats(limit=30)
     if recent_chats:
         for item in recent_chats:
-            label = item["title"] or "New conversation"
+            label = item["title"] or "Cuộc trò chuyện mới"
             is_current = item["id"] == st.session_state.chat_id
             button_label = ("● " if is_current else "　") + label[:34]
             if st.button(button_label, key=f"chat_{item['id']}", use_container_width=True):
                 load_chat(item["id"])
                 st.rerun()
     else:
-        st.caption("Your saved chats will appear here.")
+        st.caption("Các đoạn chat đã lưu sẽ hiển thị ở đây.")
 
     st.divider()
-    st.markdown("#### Model connection")
+    st.markdown("#### Kết nối mô hình AI")
 
     provider_options = list(PROVIDER_DEFAULTS.keys())
     current_provider = st.session_state.provider
     if current_provider not in provider_options:
         current_provider = "OpenAI-compatible"
     provider = st.selectbox(
-        "Provider",
+        "Nhà cung cấp (Provider)",
         provider_options,
         index=provider_options.index(current_provider),
-        help="Choose a hosted API or a local Ollama server.",
+        help="Chọn dịch vụ API đám mây hoặc máy chủ Ollama cục bộ.",
     )
     defaults = PROVIDER_DEFAULTS[provider]
 
@@ -149,17 +149,16 @@ with st.sidebar:
     default_model = defaults["model"]
     default_env_key = os.getenv(defaults["key_env"], "") if defaults["key_env"] else ""
 
-    # Separate widget keys retain each provider's own settings when switching providers.
     base_url = st.text_input(
-        "API base URL",
+        "Đường dẫn cơ sở API (Base URL)",
         value=st.session_state.get(f"base_{provider}", default_base),
         key=f"base_widget_{provider}",
-        help="For OpenAI-compatible services, use the API root, usually ending in /v1.",
+        help="Đối với các dịch vụ tương thích OpenAI, dùng gốc API thường kết thúc bằng /v1.",
     )
     st.session_state[f"base_{provider}"] = base_url
 
     model = st.text_input(
-        "Model name",
+        "Tên mô hình (Model name)",
         value=st.session_state.get(f"model_{provider}", default_model),
         key=f"model_widget_{provider}",
     )
@@ -168,50 +167,61 @@ with st.sidebar:
     api_key = ""
     if provider != "Ollama (local)":
         api_key = st.text_input(
-            "API key",
+            "Khóa API (API key)",
             value=st.session_state.get(f"key_{provider}", default_env_key),
             type="password",
             key=f"key_widget_{provider}",
-            help="The key is held in this Streamlit session and is not written to chat history.",
+            help="Khóa được giữ trong phiên làm việc Streamlit này và không được lưu vào lịch sử chat.",
         )
         st.session_state[f"key_{provider}"] = api_key
     else:
-        st.caption("Make sure Ollama is running and the selected model is installed.")
+        st.caption("Đảm bảo Ollama đang chạy và mô hình đã được cài đặt.")
 
     st.session_state.provider = provider
     st.session_state.model = model.strip() or default_model
 
     st.divider()
-    st.markdown("#### Assistant behavior")
+    st.markdown("#### Hành vi của trợ lý")
     system_prompt = st.text_area(
-        "System prompt",
+        "Prompt hệ thống",
         value=st.session_state.get(
             "system_prompt",
-            "You are a helpful, accurate assistant. Be clear about uncertainty and do not invent facts.",
+            "Bạn là một trợ lý hữu ích và chính xác. Hãy rõ ràng về mức độ chắc chắn và không bịa đặt thông tin.",
         ),
         height=120,
     )
     st.session_state.system_prompt = system_prompt
 
-    temperature = st.slider("Temperature", 0.0, 2.0, 0.7, 0.1)
-    max_tokens = st.select_slider("Max output tokens", options=[256, 512, 1024, 2048, 4096, 8192], value=2048)
+    temperature = st.slider("Nhiệt độ (Temperature)", 0.0, 2.0, 0.7, 0.1)
+    max_tokens = st.select_slider("Số token đầu ra tối đa", options=[256, 512, 1024, 2048, 4096, 8192], value=2048)
+
+    # Vị trí cố định của phần nạp tiền bằng tài khoản ngân hàng (dạng mẫu)
+    st.divider()
+    st.markdown("#### 💎 Nạp tiền ngân hàng")
+    st.markdown("""
+    *Chức năng nạp tiền qua tài khoản (Mẫu)*:
+    - **Ngân hàng:** MB Bank / Vietcombank
+    - **STK:** `123456789`
+    - **Chủ TK:** CHINH LY
+    - **Nội dung:** `nap [Tên tài khoản]`
+    """)
 
     st.divider()
-    st.markdown('<div class="small-muted">DarkGPT is an independent starter project. API usage may incur provider charges.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="small-muted">VibNest là dự án độc lập. Việc sử dụng API có thể phát sinh phí từ nhà cung cấp.</div>', unsafe_allow_html=True)
 
-# Main area.
+# Khu vực chính.
 st.markdown(
-    '<div class="hero"><h1>What would you like to explore?</h1>'
-    '<p>Chat with different AI models from one clean workspace.</p></div>',
+    '<div class="hero"><h1>Bạn muốn khám phá điều gì hôm nay?</h1>'
+    '<p>Trò chuyện với các mô hình AI khác nhau từ một không gian làm việc tối ưu.</p></div>',
     unsafe_allow_html=True,
 )
 
 if not st.session_state.messages:
-    st.markdown("##### Start with a prompt")
+    st.markdown("##### Bắt đầu với một gợi ý nhanh")
     sample_prompts = [
-        "Explain a difficult topic in simple terms.",
-        "Help me plan a small business from a limited budget.",
-        "Review this code and suggest improvements.",
+        "Giải thích một chủ đề phức tạp bằng ngôn từ đơn giản.",
+        "Giúp tôi lên kế hoạch kinh doanh nhỏ với ngân sách hạn chế.",
+        "Đánh giá đoạn mã này và đề xuất các điểm cải tiến.",
     ]
     cols = st.columns(3)
     for index, prompt in enumerate(sample_prompts):
@@ -225,7 +235,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 pending_prompt = st.session_state.pop("pending_prompt", None)
-user_prompt = st.chat_input("Message DarkGPT…") or pending_prompt
+user_prompt = st.chat_input("Nhắn cho VibNest…") or pending_prompt
 
 if user_prompt:
     cleaned_prompt = user_prompt.strip()
@@ -237,7 +247,7 @@ if user_prompt:
         request_messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
         with st.chat_message("assistant"):
             response_slot = st.empty()
-            with st.spinner(f"Talking to {st.session_state.model}…"):
+            with st.spinner(f"Đang trò chuyện với {st.session_state.model}…"):
                 try:
                     answer = chat_completion(
                         provider=st.session_state.provider,
@@ -254,28 +264,29 @@ if user_prompt:
                     persist_chat()
                 except ProviderError as exc:
                     response_slot.error(str(exc))
-                except Exception as exc:  # Keep UI alive if an unexpected provider error occurs.
-                    response_slot.error(f"Unexpected error: {exc}")
+                except Exception as exc:
+                    response_slot.error(f"Lỗi không mong đợi: {exc}")
 
-# Footer tools.
+# Công cụ chân trang.
 if st.session_state.messages:
     st.divider()
     col_a, col_b, col_c = st.columns([1, 1, 4])
     transcript = "\n\n".join(
-        f"{'You' if m['role'] == 'user' else 'DarkGPT'}:\n{m['content']}"
+        f"{'Bạn' if m['role'] == 'user' else 'VibNest'}:\n{m['content']}"
         for m in st.session_state.messages
     )
     with col_a:
         st.download_button(
-            "Export chat",
+            "Xuất cuộc trò chuyện",
             data=transcript,
-            file_name=f"darkgpt-chat-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md",
+            file_name=f"vibnest-chat-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md",
             mime="text/markdown",
             use_container_width=True,
         )
     with col_b:
-        if st.button("Clear chat", use_container_width=True):
+        if st.button("Xóa cuộc trò chuyện", use_container_width=True):
             start_new_chat()
             st.rerun()
     with col_c:
-        st.caption(f"Provider: {st.session_state.provider} · Model: {st.session_state.model}")
+        st.caption(f"Nhà cung cấp: {st.session_state.provider} · Mô hình: {st.session_state.model}")
+        
